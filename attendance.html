@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Take Attendance</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 1rem; }
+    header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+    .controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: .5rem 1rem; margin-top: .5rem; }
+    label { font-size: .9rem; color: #333; display: flex; flex-direction: column; gap: .25rem; }
+    input, select, button { padding: .5rem .6rem; font-size: 1rem; }
+    button.primary { background: #2563eb; color: white; border: none; border-radius: 8px; }
+    button.ghost { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .toolbar { display: flex; gap: .5rem; margin: .75rem 0; }
+    .status { font-size: .9rem; color: #666; margin-left: .5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+    th, td { padding: .5rem .6rem; border-bottom: 1px solid #eee; text-align: left; }
+    tr:hover { background: #fafafa; }
+    .hidden { display: none; }
+    .pill { display:inline-block; padding: .2rem .5rem; border-radius: 999px; background: #eef2ff; color:#3730a3; font-size:.8rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Take Attendance</h1>
+    <span id="liveTag" class="pill hidden">Live</span>
+    <span id="status" class="status"></span>
+  </header>
+
+  <section class="controls">
+    <label>Date
+      <input type="date" id="attDate">
+    </label>
+    <label>Period
+      <select id="period"></select>
+    </label>
+    <label>Time
+      <input type="time" id="attTime">
+    </label>
+    <label>Subject
+      <select id="subject"></select>
+    </label>
+    <div style="display:flex;align-items:end;">
+      <button id="startBtn" class="primary">Start Session</button>
+    </div>
+  </section>
+
+  <div id="tools" class="toolbar hidden">
+    <button id="markAll" class="ghost">Mark all Present</button>
+    <button id="clearAll" class="ghost">Clear all</button>
+  </div>
+
+  <table id="rosterTable">
+    <thead>
+      <tr>
+        <th style="width:90px;">ID</th>
+        <th>Name</th>
+        <th style="width:140px;">Present</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { STUDENTS } from './students.js';
+
+    // Firebase (CDN modular SDK)
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getDatabase, ref, set, update, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+    // 1) Paste your Firebase config here after Step 6
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_DB_NAME.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Subjects & periods
+    const SUBJECTS = [
+      'Mathematics','Science','English','History','Geography','Computer Science',
+      'Physics','Chemistry','Biology','Physical Education','Art','Music','Economics','Civics'
+    ];
+    const PERIODS = Array.from({length: 8}, (_,i)=> (i+1));
+
+    // Elements
+    const dateEl = document.getElementById('attDate');
+    const timeEl = document.getElementById('attTime');
+    const periodEl = document.getElementById('period');
+    const subjectEl = document.getElementById('subject');
+    const startBtn = document.getElementById('startBtn');
+    const rosterTableBody = document.querySelector('#rosterTable tbody');
+    const tools = document.getElementById('tools');
+    const markAllBtn = document.getElementById('markAll');
+    const clearAllBtn = document.getElementById('clearAll');
+    const statusEl = document.getElementById('status');
+    const liveTag = document.getElementById('liveTag');
+
+    // Utils
+    const localISODate = () => {
+      const off = new Date().getTimezoneOffset() * 60000;
+      return new Date(Date.now() - off).toISOString().slice(0,10);
+    };
+    const pad = n => String(n).padStart(2, '0');
+    const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g,'');
+
+    // Defaults
+    dateEl.value = localISODate();
+    const now = new Date();
+    timeEl.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    PERIODS.forEach(p => periodEl.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+    SUBJECTS.forEach(s => subjectEl.insertAdjacentHTML('beforeend', `<option>${s}</option>`));
+
+    let sessionPath = null;
+    let unsubscribeStudents = null;
+    const checkboxById = new Map();
+
+    function buildSessionPath() {
+      const date = dateEl.value;
+      const period = periodEl.value;
+      const subjectName = subjectEl.value;
+      const subjectSlug = slugify(subjectName);
+      return `attendance/${date}/${period}/${subjectSlug}`;
+    }
+
+    function setMeta() {
+      const path = sessionPath + '/meta';
+      const meta = {
+        date: dateEl.value,
+        period: Number(periodEl.value),
+        time: timeEl.value,
+        subject: subjectEl.value,
+        updatedAt: Date.now()
+      };
+      return set(ref(db, path), meta);
+    }
+
+    function renderRoster() {
+      rosterTableBody.innerHTML = '';
+      checkboxById.clear();
+      for (const s of STUDENTS) {
+        const tr = document.createElement('tr');
+        const tdId = document.createElement('td'); tdId.textContent = s.id;
+        const tdName = document.createElement('td'); tdName.textContent = s.name;
+        const tdChk = document.createElement('td');
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.addEventListener('change', () => {
+          const updates = {}; updates[s.id] = chk.checked ? true : false;
+          update(ref(db, sessionPath + '/students'), updates).catch(console.error);
+          setMeta().catch(()=>{});
+        });
+        tdChk.appendChild(chk);
+        tr.appendChild(tdId); tr.appendChild(tdName); tr.appendChild(tdChk);
+        rosterTableBody.appendChild(tr);
+        checkboxById.set(s.id, chk);
+      }
+    }
+
+    function startListening() {
+      if (unsubscribeStudents) unsubscribeStudents();
+      const r = ref(db, sessionPath + '/students');
+      unsubscribeStudents = onValue(r, snap => {
+        const data = snap.val() || {};
+        // Update checkboxes based on DB
+        for (const s of STUDENTS) {
+          const chk = checkboxById.get(s.id);
+          if (!chk) continue;
+          chk.checked = !!data[s.id];
+        }
+      });
+    }
+
+    startBtn.addEventListener('click', async () => {
+      sessionPath = buildSessionPath();
+      await setMeta();
+      renderRoster();
+      startListening();
+      tools.classList.remove('hidden');
+      liveTag.classList.remove('hidden');
+      statusEl.textContent = 'Live session: ' + sessionPath;
+    });
+
+    markAllBtn.addEventListener('click', () => {
+      if (!sessionPath) return;
+      const updates = {};
+      for (const s of STUDENTS) updates[s.id] = true;
+      update(ref(db, sessionPath + '/students'), updates).then(setMeta).catch(console.error);
+    });
+
+    clearAllBtn.addEventListener('click', () => {
+      if (!sessionPath) return;
+      const updates = {};
+      for (const s of STUDENTS) updates[s.id] = false;
+      update(ref(db, sessionPath + '/students'), updates).then(setMeta).catch(console.error);
+    });
+  </script>
+</body>
+</html>
