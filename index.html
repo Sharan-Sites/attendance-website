@@ -1,50 +1,30 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Class Attendance</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Class Attendance</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+    h1 { margin-bottom: .5rem; }
+    .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 1rem; }
+    a.card { text-decoration: none; border: 1px solid #ddd; padding: 1rem; border-radius: 12px; transition: box-shadow .2s; color: inherit; }
+    a.card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+    .muted { color: #666; }
+  </style>
 </head>
 <body>
-    <h1>Class Attendance</h1>
-
-    <div id="date-time-subject">
-        <label for="date">Date:</label>
-        <input type="date" id="date">
-
-        <label for="time">Time:</label>
-        <input type="time" id="time">
-
-        <label for="subject">Subject:</label>
-        <select id="subject">
-            <option value="">-- Select Subject --</option>
-            <option value="Math">Math</option>
-            <option value="Science">Science</option>
-            <option value="History">History</option>
-            <option value="English">English</option>
-            <option value="Computer Science">Computer Science</option>
-            </select>
-
-        <button id="get-attendance">View Attendance</button>
-    </div>
-
-    <div id="attendance-viewer">
-        <h2>Attendance for:</h2>
-        <p id="date-time-subject-display"></p>
-        <table id="attendance-table">
-            <thead>
-                <tr>
-                    <th>Student Name</th>
-                    <th>Present</th>
-                    <th>Absent</th>
-                </tr>
-            </thead>
-            <tbody>
-            </tbody>
-        </table>
-    </div>
-
-    <script src="script.js"></script>
+  <h1>Class Attendance</h1>
+  <p class="muted">Choose what you want to do.</p>
+  <div class="cards">
+    <a class="card" href="./attendance.html">
+      <h2>Take Attendance</h2>
+      <p>Mark period-wise attendance for 70 students.</p>
+    </a>
+    <a class="card" href="./viewer.html">
+      <h2>Live Viewer</h2>
+      <p>See real-time attendance updates by date/period/subject.</p>
+    </a>
+  </div>
 </body>
 </html>
