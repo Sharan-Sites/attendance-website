@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attendance Viewer</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 1rem; }
+    header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+    .controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: .5rem 1rem; margin-top: .5rem; }
+    label { font-size: .9rem; color: #333; display: flex; flex-direction: column; gap: .25rem; }
+    input, select { padding: .5rem .6rem; font-size: 1rem; }
+    .stats { display: flex; gap: 1rem; margin-top: .75rem; }
+    .badge { padding: .3rem .6rem; border-radius: 999px; font-weight: 600; }
+    .present { background: #dcfce7; color: #166534; }
+    .absent { background: #fee2e2; color: #991b1b; }
+    table { width: 100%; border-collapse: collapse; margin-top: .75rem; }
+    th, td { padding: .5rem .6rem; border-bottom: 1px solid #eee; text-align: left; }
+    tr:hover { background: #fafafa; }
+    .muted { color: #666; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Live Attendance Viewer</h1>
+    <span id="meta" class="muted"></span>
+  </header>
+
+  <section class="controls">
+    <label>Date
+      <input type="date" id="viewDate">
+    </label>
+    <label>Period
+      <select id="viewPeriod"></select>
+    </label>
+    <label>Subject
+      <select id="viewSubject"></select>
+    </label>
+  </section>
+
+  <div class="stats">
+    <span class="badge present">Present: <strong id="presentCount">0</strong></span>
+    <span class="badge absent">Absent: <strong id="absentCount">0</strong></span>
+  </div>
+
+  <table id="viewTable">
+    <thead>
+      <tr>
+        <th style="width:90px;">ID</th>
+        <th>Name</th>
+        <th style="width:140px;">Status</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script type="module">
+    import { STUDENTS } from './students.js';
+
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+    // 1) Paste the same Firebase config you used in attendance.html
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_DB_NAME.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const SUBJECTS = [
+      'Mathematics','Science','English','History','Geography','Computer Science',
+      'Physics','Chemistry','Biology','Physical Education','Art','Music','Economics','Civics'
+    ];
+    const PERIODS = Array.from({length: 8}, (_,i)=> (i+1));
+    const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g,'');
+    const localISODate = () => {
+      const off = new Date().getTimezoneOffset() * 60000;
+      return new Date(Date.now() - off).toISOString().slice(0,10);
+    };
+
+    // Elements
+    const dateEl = document.getElementById('viewDate');
+    const periodEl = document.getElementById('viewPeriod');
+    const subjectEl = document.getElementById('viewSubject');
+    const metaEl = document.getElementById('meta');
+    const presentCountEl = document.getElementById('presentCount');
+    const absentCountEl = document.getElementById('absentCount');
+    const tbody = document.querySelector('#viewTable tbody');
+
+    // Defaults
+    dateEl.value = localISODate();
+    PERIODS.forEach(p => periodEl.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+    SUBJECTS.forEach(s => subjectEl.insertAdjacentHTML('beforeend', `<option>${s}</option>`));
+
+    // Build table once
+    const rowById = new Map();
+    function buildTable() {
+      tbody.innerHTML = '';
+      for (const s of STUDENTS) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.id}</td>
+          <td>${s.name}</td>
+          <td class="statusCell">Absent</td>
+        `;
+        tbody.appendChild(tr);
+        rowById.set(s.id, tr.querySelector('.statusCell'));
+      }
+    }
+    buildTable();
+
+    let unsubStudents = null;
+    let unsubMeta = null;
+
+    function buildPath() {
+      return `attendance/${dateEl.value}/${periodEl.value}/${slugify(subjectEl.value)}`;
+    }
+
+    function listen() {
+      // Unsubscribe previous listeners
+      if (unsubStudents) unsubStudents();
+      if (unsubMeta) unsubMeta();
+
+      const base = buildPath();
+
+      // Students listener
+      unsubStudents = onValue(ref(db, base + '/students'), snap => {
+        const data = snap.val() || {};
+        let present = 0;
+        for (const s of STUDENTS) {
+          const cell = rowById.get(s.id);
+          const isPresent = !!data[s.id];
+          cell.textContent = isPresent ? 'Present' : 'Absent';
+          cell.style.color = isPresent ? '#166534' : '#991b1b';
+        }
+        present = Object.values(data).filter(Boolean).length;
+        presentCountEl.textContent = present;
+        absentCountEl.textContent = STUDENTS.length - present;
+      });
+
+      // Meta listener
+      unsubMeta = onValue(ref(db, base + '/meta'), snap => {
+        const m = snap.val();
+        if (!m) {
+          metaEl.textContent = 'No session yet for this selection.';
+        } else {
+          metaEl.textContent = `Date: ${m.date} | Period: ${m.period} | Subject: ${m.subject} | Time: ${m.time || '-'}`;
+        }
+      });
+    }
+
+    dateEl.addEventListener('change', listen);
+    periodEl.addEventListener('change', listen);
+    subjectEl.addEventListener('change', listen);
+
+    // Start listening initially
+    listen();
+  </script>
+</body>
+</html>
