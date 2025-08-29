@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Attendance</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Class Attendance</h1>
+
+    <div id="date-time-subject">
+        <label for="date">Date:</label>
+        <input type="date" id="date">
+
+        <label for="time">Time:</label>
+        <input type="time" id="time">
+
+        <label for="subject">Subject:</label>
+        <select id="subject">
+            <option value="">-- Select Subject --</option>
+            <option value="Math">Math</option>
+            <option value="Science">Science</option>
+            <option value="History">History</option>
+            <option value="English">English</option>
+            <option value="Computer Science">Computer Science</option>
+            </select>
+
+        <button id="get-attendance">View Attendance</button>
+    </div>
+
+    <div id="attendance-viewer">
+        <h2>Attendance for:</h2>
+        <p id="date-time-subject-display"></p>
+        <table id="attendance-table">
+            <thead>
+                <tr>
+                    <th>Student Name</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
