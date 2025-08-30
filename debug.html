@@ -42,6 +42,18 @@
       const { getDatabase, ref, set, onValue } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
 
       // Paste your real config here (same as attendance.html/viewer.html)
+
+      const firebaseConfig = {
+  apiKey: "AIzaSyCFgpJtHu7lNYs7kSbuZ2yW7r5MRc_rvDs",
+  authDomain: "attendance-project-47a11.firebaseapp.com",
+      databaseURL: "https://attendance-project-47a11-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "attendance-project-47a11",
+  storageBucket: "attendance-project-47a11.firebasestorage.app",
+  messagingSenderId: "190617478817",
+  appId: "1:190617478817:web:02f4c328dfd5c048ffb2e0",
+  measurementId: "G-B6Z1FDG8QG"
+};
+      
       
 
       const app = initializeApp(firebaseConfig);
