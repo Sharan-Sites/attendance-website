@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attendance Debug</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 1rem; }
+    h1 { margin-bottom: .5rem; }
+    .ok { color: #166534; }
+    .err { color: #991b1b; }
+    code { background:#f3f4f6; padding:.2rem .35rem; border-radius:6px; }
+    li { margin:.35rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Debug</h1>
+  <ol id="log"></ol>
+
+  <script type="module">
+    const log = (msg, ok = true) => {
+      const li = document.createElement('li');
+      li.innerHTML = (ok ? '✅ ' : '❌ ') + msg;
+      li.className = ok ? 'ok' : 'err';
+      document.getElementById('log').appendChild(li);
+    };
+
+    // 1) Load students
+    let count = 0;
+    try {
+      const mod = await import('./students.js');
+      if (!mod || !mod.STUDENTS) throw new Error('students.js export missing');
+      count = Array.isArray(mod.STUDENTS) ? mod.STUDENTS.length : 0;
+      log('students.js loaded, count=' + count);
+    } catch (e) {
+      log('students.js failed: ' + e.message, false);
+    }
+
+    // 2) Firebase
+    try {
+      const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+      const { getDatabase, ref, set, onValue } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+
+      // Paste your real config here (same as attendance.html/viewer.html)
+      const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "attendance-project-47a11.firebaseapp.com",
+        databaseURL: "https://attendance-project-47a11-default-rtdb.firebaseio.com",
+        projectId: "attendance-project-47a11",
+        storageBucket: "attendance-project-47a11.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      log('Firebase initialized (projectId=' + firebaseConfig.projectId + ')');
+
+      const db = getDatabase(app);
+      log('Database ready (databaseURL=' + (firebaseConfig.databaseURL || 'missing!') + ')');
+
+      const testRef = ref(db, 'debug/connectionTest');
+      await set(testRef, { ts: Date.now() });
+      log('Write test succeeded at /debug/connectionTest');
+
+      onValue(testRef, snap => {
+        const v = snap.val();
+        if (v) log('Read test succeeded (ts=' + v.ts + ')');
+      });
+    } catch (e) {
+      log('Firebase error: ' + (e && e.message ? e.message : e), false);
+    }
+  </script>
+</body>
+</html>
